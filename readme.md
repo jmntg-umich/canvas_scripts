@@ -19,7 +19,13 @@ This script downloads submission comments from a specified Canvas assignment and
    ```bash
    pip install canvasapi
    ```
-3. **Update `config_template.json` with your Canvas API and Course number file and rename it config.json**
+3. **Update `config_template.json` with your Canvas API and course ID and rename it `config.json`**\
+To get a Canvas API: 
+- Navigate to your Canvas account (click on your profile picture), and open Settings
+- Scroll down to the bottom of the Approved Integrations section
+- Click "+ New Access Token"\
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Your Canvas course ID is a 6 digit number that can be found in the URL on any Canvas page in that course: https://umich.instructure.com/courses/######
 
 ## Usage
 
@@ -27,7 +33,7 @@ This script downloads submission comments from a specified Canvas assignment and
    ```bash
    python download_assignment_comments.py
    ```
-2. **Input:** When prompted, enter a single assignment number (e.g., `120`) for which you want to download comments.  
+2. **Input:** When prompted, enter a single assignment number (7 digit number in URL: assignments/#######) for which you want to download comments.  
    - Typing `all` will remind you that the script only works on single assignments.
 
 3. **Output:**  

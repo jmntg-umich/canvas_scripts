@@ -68,7 +68,7 @@ assignment_input = input("Enter an assignment number (group assignment only): ")
 try:
     assignment_number = int(assignment_input)
 except ValueError:
-    print("Invalid input: please enter a number.")
+    print("Invalid input: please enter a valid assignment number. This is a 7-digit number that appears in the URL after /assignments/ when you view the assignment in Canvas.")
     exit(1)
 
 a = course.get_assignment(assignment_number)
