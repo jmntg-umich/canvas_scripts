@@ -1,0 +1,6 @@
+{
+    "API_URL": "https://umich.instructure.com/",
+    "API_KEY": "put your API key here",
+    "COURSE_ID": 111111,
+    "COURSE_NAME": "course name here"
+}
