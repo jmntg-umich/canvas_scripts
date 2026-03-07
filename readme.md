@@ -1,7 +1,9 @@
 # Canvas Assignment Comments Downloader
 
 ## Overview
-These scripts create a report containing submission comments from a specified Canvas assignment (or all assignments) from a specified Canvas course.  
+These scripts create a report containing submission comments from a specified Canvas assignment (or all assignments) from a specified Canvas course.\
+\
+Please note: The group comment report DOES contain numerical grades, so be sure not to share it with non-authorized individuals. Always follow FERPA guidlines. 
 
 ## Requirements
 
@@ -13,7 +15,7 @@ These scripts create a report containing submission comments from a specified Ca
 
 1. **Clone or download the script.**
 2. **Install required Python modules:**
-   ```bash
+   ```
    pip install canvasapi
    ```
 3. **Update `config_template.json` with your Canvas API and course ID and rename it `config.json`**
@@ -24,9 +26,14 @@ These scripts create a report containing submission comments from a specified Ca
 ## Usage
 
 1. **Run the script:**
-   ```bash
-   python download_assignment_comments.py
    ```
+   python3 indiv_peerfeedback_comments.py
+   ```
+   or
+   ```
+   python3 group_grades_comments.py
+   ```
+   (you can give the files shorter names if you want to make it easier on yourself)
 2. **Input:** When prompted, enter a single assignment number (7 digit number in URL: assignments/#######) for which you want to download comments, or (for the individual comment script) type `all` to download comments for all assignments.
 
 3. **Output:**  
@@ -50,7 +57,7 @@ Comment: Please clarify your thesis statement.
 ...
 
 ```
-If you choose to download comments for all assignments, the comments will be organized by assignment, then by commenter. The name of each assignment will be written in all caps, followed by all of the comments for that assignment.
+If you choose to download comments for all assignments, the comments will be organized by assignment, then by commenter. The name of each assignment will be written in all caps, followed by all of the comments for that assignment. 
 ```
 ASSIGNMENT NAME
 
