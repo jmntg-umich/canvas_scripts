@@ -5,7 +5,7 @@ These python scripts are utilities that can be used to interact with assignment 
 \
 `indiv_peerfeedback_comments.py` and `group_grades_comments` create a report containing submission comments from a specified Canvas assignment (or all assignments) from a specified Canvas course.\
 \
-Please note: The group comment report DOES contain numerical grades, so be sure not to share it with non-authorized individuals. Always follow FERPA guidlines.
+Please note: The group comment report DOES contain numerical grades, so be sure not to share it with non-authorized individuals. Always follow FERPA guidlines.\
 \
 The script titled `upload_comments.py`, on the other hand, batch uploads files as comments to students' submissions on Canvas.\
 
