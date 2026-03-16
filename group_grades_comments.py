@@ -49,7 +49,7 @@ API_KEY = config['API_KEY']
 COURSE_ID = config['COURSE_ID']
 COURSE_NAME = config['COURSE_NAME']
 
-OUTPUT_FOLDER = "output"
+OUTPUT_FOLDER = "reports"
 canvas = Canvas(API_URL, API_KEY)
 course = canvas.get_course(COURSE_ID)
 
