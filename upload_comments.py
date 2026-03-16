@@ -87,14 +87,56 @@ def canvas_api_base(api_url):
     """
     api_url = (api_url or "").strip().rstrip("/")
     if api_url.endswith("/api/v1"):
-        # If someone put this in config, normalize it to domain-only first
         api_url = api_url[: -len("/api/v1")]
     return api_url + "/api/v1"
 
 
+def get_latest_submissions_by_user(assignment):
+    """
+    Returns a dict {user_id: Submission} containing only the most recent submission per user.
+    Uses attempt when available; falls back to submitted_at.
+    """
+    subs = list(assignment.get_submissions(include=["user"]))
+
+    def key(s):
+        a = getattr(s, "attempt", None)
+        sa = getattr(s, "submitted_at", None)
+        # attempt higher = newer; submitted_at ISO string sorts lexicographically
+        return (int(a) if a is not None else -1, sa or "")
+
+    latest = {}
+    for s in subs:
+        uid = int(getattr(s, "user_id"))
+        if uid not in latest or key(s) > key(latest[uid]):
+            latest[uid] = s
+    return latest
+
+
+def submission_already_has_comment_attachment(api_url, api_key, course_id, assignment_id, user_id):
+    """
+    Returns True if the student's submission has any submission comment attachments.
+    """
+    api_base = canvas_api_base(api_url)
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    url = f"{api_base}/courses/{course_id}/assignments/{assignment_id}/submissions/{user_id}"
+    r = requests.get(url, headers=headers, params={"include[]": "submission_comments"}, timeout=120)
+    r.raise_for_status()
+    data = r.json()
+
+    comments = data.get("submission_comments") or []
+    for c in comments:
+        atts = c.get("attachments") or c.get("comment_attachments") or []
+        if atts:
+            return True
+    return False
+
+
 def upload_comment_file_and_post_comment(api_url, api_key, course_id, assignment_id, user_id, file_path, comment_text):
     """
-    Pure requests implementation of:
+    Upload a file as a comment attachment and then post a submission comment.
+
+    Canvas upload flow:
       1) POST /courses/:course_id/assignments/:assignment_id/submissions/:user_id/comments/files
       2) POST upload_url (multipart)
       3) follow success redirect if needed to obtain file id
@@ -129,9 +171,8 @@ def upload_comment_file_and_post_comment(api_url, api_key, course_id, assignment
         files = {"file": (file_name, f, content_type)}
         r2 = requests.post(upload_url, data=upload_params, files=files, allow_redirects=False, timeout=300)
 
-    uploaded = None
-
     # 3) follow redirect or parse JSON
+    uploaded = None
     if r2.status_code in (301, 302, 303, 307, 308):
         success_url = r2.headers.get("Location")
         if not success_url:
@@ -182,21 +223,22 @@ def auto_comment_from_files(
     dry_run=False,
     report_path=None,
 ):
-    # canvasapi: just for listing submissions/users
+    # canvasapi: for listing + verifying course/assignment access
     canvas = Canvas(api_url, api_key)
     course = canvas.get_course(course_id)
     assignment = course.get_assignment(assignment_id)
 
-    submissions = list(assignment.get_submissions(include=["user"]))
+    # Only most recent submission per student
+    latest_by_user = get_latest_submissions_by_user(assignment)
 
     canvas_rows = []
-    for sub in submissions:
+    for uid, sub in latest_by_user.items():
         u = getattr(sub, "user", None) or {}
         name = u.get("name") or ""
         sortable = u.get("sortable_name") or ""
         first = parse_first_name(sortable or name)
         canvas_rows.append({
-            "user_id": int(getattr(sub, "user_id")),
+            "user_id": int(uid),
             "name": name,
             "sortable_name": sortable,
             "first_key": norm_first(first),
@@ -207,10 +249,15 @@ def auto_comment_from_files(
         canvas_by_first[row["first_key"]].append(row)
 
     report = {
+        # requested error classes:
         "canvas_missing_file": [],            # (a)
         "canvas_duplicate_first_names": [],   # (b)
         "file_missing_canvas_student": [],    # (c)
+
+        # additional safety/behavior:
         "ambiguous_file_for_student": [],
+        "skipped_already_has_attachment": [],
+        "failed_attachment_check": [],
         "uploaded": [],
         "failed_upload_or_comment": [],
     }
@@ -275,6 +322,27 @@ def auto_comment_from_files(
 
         file_path = matches[0]
 
+        # Skip if there is already an attachment on submission comments
+        try:
+            if submission_already_has_comment_attachment(api_url, api_key, course_id, assignment_id, r["user_id"]):
+                report["skipped_already_has_attachment"].append({
+                    "user_id": r["user_id"],
+                    "name": r["name"],
+                    "file": file_path,
+                    "reason": "Submission already has a comment attachment; skipping."
+                })
+                print(f"SKIP (already has attachment): {r['name']} (user_id={r['user_id']})")
+                continue
+        except Exception as e:
+            report["failed_attachment_check"].append({
+                "user_id": r["user_id"],
+                "name": r["name"],
+                "file": file_path,
+                "error": str(e),
+            })
+            print(f"FAILED attachment check: {r['name']} (user_id={r['user_id']}): {e}")
+            continue
+
         if dry_run:
             report["uploaded"].append({
                 "user_id": r["user_id"],
@@ -309,7 +377,7 @@ def auto_comment_from_files(
                 "file": file_path,
                 "error": str(e),
             })
-            print(f"FAILED: {r['name']} (user_id={r['user_id']}): {e}")
+            print(f"FAILED upload/comment: {r['name']} (user_id={r['user_id']}): {e}")
 
     if report_path:
         os.makedirs(os.path.dirname(report_path) or ".", exist_ok=True)
@@ -337,6 +405,7 @@ if __name__ == "__main__":
     if "/api/v1" in API_URL:
         raise ValueError(f"API_URL in config must NOT include /api/v1. Got: {API_URL}")
 
+    # local settings
     FILES_FOLDER = "./comment_files"
     COMMENT_TEXT = "Please see the attached feedback file."
     DRY_RUN = False
@@ -366,6 +435,8 @@ if __name__ == "__main__":
     print("students missing a file:", len(report["canvas_missing_file"]))
     print("files missing a Canvas student:", len(report["file_missing_canvas_student"]))
     print("ambiguous multiple files for a student:", len(report["ambiguous_file_for_student"]))
+    print("skipped (already has attachment):", len(report["skipped_already_has_attachment"]))
+    print("failed attachment check:", len(report["failed_attachment_check"]))
     print("failed upload/comment:", len(report["failed_upload_or_comment"]))
     print("uploaded:", len(report["uploaded"]))
     print(f"report written to: {REPORT_PATH}")
