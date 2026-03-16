@@ -12,14 +12,16 @@ def sanitize_filename(name):
     name = re.sub(r'[^a-z0-9_.-]', '', name)
     return name
 
-def create_unique_filename(course_name, assignment_name, folder, base_suffix="_comments.txt"):
+def create_unique_filename(course_name, term_name, assignment_name, folder, base_suffix="_comments.txt"):
     os.makedirs(folder, exist_ok=True)
     course_safe = sanitize_filename(course_name)
+    term_safe = sanitize_filename(term_name)
     assignment_safe = sanitize_filename(assignment_name)
-    base = f"{course_safe}_{assignment_safe}{base_suffix}"
+    base = f"{course_safe}_{term_safe}_{assignment_safe}{base_suffix}"
     n = 1
     while True:
-        fname = os.path.join(folder, f"{base if n == 1 else f'{course_safe}_{assignment_safe}_{n}{base_suffix}'}")
+        candidate = base if n == 1 else f"{course_safe}_{term_safe}_{assignment_safe}_{n}{base_suffix}"
+        fname = os.path.join(folder, candidate)
         if not os.path.exists(fname):
             return fname
         n += 1
@@ -40,6 +42,30 @@ def get_rubric_assessment(sub):
             pass
     return {}
 
+def get_term_name_from_course(course):
+    """
+    Try to get the course term/semester name via Canvas API fields.
+    Falls back to an empty string if not available.
+    """
+    try:
+        # Canvas often exposes a 'term' dict with a 'name' when you request it.
+        term = getattr(course, "term", None)
+        if isinstance(term, dict) and term.get("name"):
+            return term["name"]
+    except Exception:
+        pass
+
+    # Re-fetch including 'term' so the field is populated.
+    try:
+        course_with_term = course.get_course(course.id, include=["term"])
+        term = getattr(course_with_term, "term", None)
+        if isinstance(term, dict) and term.get("name"):
+            return term["name"]
+    except Exception:
+        pass
+
+    return ""
+
 # --- Load config ---
 with open('config.json', 'r') as f:
     config = json.load(f)
@@ -47,11 +73,14 @@ with open('config.json', 'r') as f:
 API_URL = config['API_URL']
 API_KEY = config['API_KEY']
 COURSE_ID = config['COURSE_ID']
-COURSE_NAME = config['COURSE_NAME']
 
 OUTPUT_FOLDER = "reports"
 canvas = Canvas(API_URL, API_KEY)
-course = canvas.get_course(COURSE_ID)
+
+# Get course + term
+course = canvas.get_course(COURSE_ID, include=["term"])
+course_name = getattr(course, "name", f"course_{COURSE_ID}")
+term_name = get_term_name_from_course(course) or "unknown_term"
 
 # Build group lookup tables
 group_id_to_name = {}
@@ -69,11 +98,13 @@ try:
     assignment_number = int(assignment_input)
 except ValueError:
     print("Invalid input: please enter a valid assignment number. This is a 7-digit number that appears in the URL after /assignments/ when you view the assignment in Canvas.")
-    exit(1)
+    raise SystemExit(1)
 
 a = course.get_assignment(assignment_number)
 assignment_name = a.name
-filename = create_unique_filename(COURSE_NAME, assignment_name, OUTPUT_FOLDER)
+
+# filename: coursename_semester_assignmentname
+filename = create_unique_filename(course_name, term_name, assignment_name, OUTPUT_FOLDER)
 
 rubric_map = {}
 rubric = getattr(a, 'rubric', None)
@@ -82,9 +113,14 @@ if rubric:
         rubric_map[crit['id']] = crit['description']
 
 with open(filename, "w", encoding="utf-8") as outfile:
+    outfile.write(f"Course: {course_name}\n")
+    outfile.write(f"Term: {term_name}\n")
     outfile.write(f"Assignment: {assignment_number} ({assignment_name})\n\n")
-    
-    for s in a.get_submissions(grouped=True, include=['submission_comments', 'rubric_assessment', 'group', 'score', 'grader_id']):
+
+    for s in a.get_submissions(
+        grouped=True,
+        include=['submission_comments', 'rubric_assessment', 'group', 'score', 'grader_id']
+    ):
         group_name = group_id_to_name.get(s.group['id'], f"Group {s.group['id']}")
         members = group_id_to_members.get(s.group['id'], ["Unknown members"])
         members_str = ", ".join(members)
@@ -98,7 +134,7 @@ with open(filename, "w", encoding="utf-8") as outfile:
         outfile.write(f"Grader: {grader}\n")
         outfile.write(f"Rubric:\n")
         rubric_assessment = get_rubric_assessment(s)
-        
+
         # Print rubric scores
         for crit_id, crit_text in rubric_map.items():
             points = ""
@@ -123,11 +159,12 @@ with open(filename, "w", encoding="utf-8") as outfile:
         # Assignment comments section
         submission_comments = getattr(s, 'submission_comments', [])
         if submission_comments:
-            outfile.write(f"Assignment comment: ")
+            outfile.write("Assignment comment: ")
             comments_str = " | ".join(flatten(c['comment']) for c in submission_comments if 'comment' in c)
             outfile.write(comments_str + "\n")
         else:
             outfile.write("Assignment comment: No assignment comment.\n")
-        outfile.write("\n" + "-"*40 + "\n\n")  # Separator between groups
+
+        outfile.write("\n" + "-" * 40 + "\n\n")  # Separator between groups
 
 print(f"Done! Output saved to {filename}")
