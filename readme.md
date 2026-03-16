@@ -1,9 +1,13 @@
 # Canvas Assignment Comments Downloader
 
 ## Overview
-These scripts create a report containing submission comments from a specified Canvas assignment (or all assignments) from a specified Canvas course.\
+These python scripts are utilities that can be used to interact with assignment comments in Canvas.\
 \
-Please note: The group comment report DOES contain numerical grades, so be sure not to share it with non-authorized individuals. Always follow FERPA guidlines. 
+`indiv_peerfeedback_comments.py` and `group_grades_comments` create a report containing submission comments from a specified Canvas assignment (or all assignments) from a specified Canvas course.\
+\
+Please note: The group comment report DOES contain numerical grades, so be sure not to share it with non-authorized individuals. Always follow FERPA guidlines.
+\
+The script titled `upload_comments.py`, on the other hand, batch uploads files as comments to students' submissions on Canvas.\
 
 ## Requirements
 
@@ -33,14 +37,23 @@ Please note: The group comment report DOES contain numerical grades, so be sure 
    ```
    python3 group_grades_comments.py
    ```
+   or
+   ```
+   python3 upload_comments.py
+   ```
    (you can give the files shorter names if you want to make it easier on yourself)
-2. **Input:** When prompted, enter a single assignment number (7 digit number in URL: assignments/#######) for which you want to download comments, or (for the individual comment script) type `all` to download comments for all assignments.
+2. **Input:** When prompted, enter a single assignment number (7 digit number in URL: assignments/#######) for which you want to download comments, or (for the individual comment download script) type `all` to download comments for all assignments.
+
+3. **Comment Files** To use `upload_comments.py`, put all of the files you wish to upload into a folder labelled `comment_files`, in the same directory as the python script. Each file must match the first name of a student in your course, e.g., `adam.py`. Case doesn't matter, but, for instance, if a student goes by a nickname that doesn't match their name on Canvas, it won't upload the file. Also, if you have two students with the same name, the script will inform you that it didn't upload the files. In these cases, you will have to upload the files manually. 
 
 3. **Output:**  
-   The script saves the organized comments in the `output/` folder. The filename is automatically generated, e.g.:  
+   The download scripts save the organized comments in the `reports/` folder. The filename is automatically generated, e.g.:  
    ```
    mycoursename_assignmentname_comments.txt
    ```
+   The upload script creates a comment on each student's submission, with the text "Please see the attached feedback file." \
+   \
+   It will also give you a report in the terminal window, and in a file titled `canvas_comment_upload_report.json` that will tell you which comments got uploaded to which students' submission, which files didn't have a matching student, which students didn't have a matching file, and any students that have the same first name. \
 
 ## Output Format (Individual)
 
